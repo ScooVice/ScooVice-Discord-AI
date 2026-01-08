@@ -18,7 +18,7 @@ class Core(commands.Cog):
     @app_commands.command(name="help", description="Show available commands")
     async def help(self, interaction: discord.Interaction):
         embed = info_embed(
-            "ScooVice BOT V2 Help",
+            "ScooVice AI ChatBot Help",
             "**Moderation Commands:**\n"
             "/kick - Kick a member\n"
             "/ban - Ban a member\n"
@@ -26,11 +26,9 @@ class Core(commands.Cog):
             "/unban - Unban a user\n"
             "/mute - Timeout a member\n"
             "/unmute - Remove timeout\n"
-            "/warn - Warn a member\n"
-            "/warnings - View member warnings\n"
-            "/clearwarnings - Clear all warnings\n"
-            "/addcommand - Add custom command\n"
-            "/removecommand - Remove custom command\n\n"
+            "**AI Commands:**\n"
+            "/chat <message> - Chat with AI\n"
+            "/clear_chat - Clear chat history\n\n"
             "**Other Commands:**\n"
             "/ping - Check bot latency\n"
             "/help - Show this help",

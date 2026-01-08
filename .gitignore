@@ -32,10 +32,6 @@ desktop.ini
 *.swp
 *.swo
 
-# Database
-*.db
-*.sqlite
-
 # Temporary files
 *.tmp
 temp/

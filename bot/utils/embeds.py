@@ -13,11 +13,11 @@ def success_embed(
         embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=bot.user.avatar.url)
         embed.set_footer(
-            text=f"ScooVice BOT V2 • {datetime.now().year}",
+            text=f"ScooVice-Discord-AI • {datetime.now().year}",
             icon_url=bot.user.avatar.url,
         )
     else:
-        embed.set_footer(text="ScooVice BOT V2")
+        embed.set_footer(text="ScooVice-Discord-AI")
     embed.timestamp = datetime.now()
     return embed
 
@@ -31,11 +31,11 @@ def error_embed(
         embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=bot.user.avatar.url)
         embed.set_footer(
-            text=f"ScooVice BOT V2 • {datetime.now().year}",
+            text=f"ScooVice-Discord-AI • {datetime.now().year}",
             icon_url=bot.user.avatar.url,
         )
     else:
-        embed.set_footer(text="ScooVice BOT V2")
+        embed.set_footer(text="ScooVice-Discord-AI")
     embed.timestamp = datetime.now()
     return embed
 
@@ -49,11 +49,11 @@ def warning_embed(
         embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=bot.user.avatar.url)
         embed.set_footer(
-            text=f"ScooVice BOT V2 • {datetime.now().year}",
+            text=f"ScooVice-Discord-AI • {datetime.now().year}",
             icon_url=bot.user.avatar.url,
         )
     else:
-        embed.set_footer(text="ScooVice BOT V2")
+        embed.set_footer(text="ScooVice-Discord-AI")
     embed.timestamp = datetime.now()
     return embed
 
@@ -67,10 +67,10 @@ def info_embed(
         embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=bot.user.avatar.url)
         embed.set_footer(
-            text=f"ScooVice BOT V2 • {datetime.now().year}",
+            text=f"ScooVice-Discord-AI • {datetime.now().year}",
             icon_url=bot.user.avatar.url,
         )
     else:
-        embed.set_footer(text="ScooVice BOT V2")
+        embed.set_footer(text="ScooVice-Discord-AI")
     embed.timestamp = datetime.now()
     return embed

@@ -1,10 +1,9 @@
 import discord
 from discord.ext import commands
 import os
-from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
-from bot.config import DISCORD_TOKEN, GUILD_ID, MONGO_URI
+from bot.config import DISCORD_TOKEN
 
 
 class ScooViceBot(commands.Bot):
@@ -15,17 +14,12 @@ class ScooViceBot(commands.Bot):
 
         super().__init__(command_prefix="!", intents=intents)
 
-        # ===== DATABASE INIT =====
-        self.mongo = AsyncIOMotorClient(MONGO_URI)
-        self.db = self.mongo["scoovice_bot"]  # nama database bebas
-
     async def setup_hook(self):
         await self.load_extension("bot.cogs.admin")
         await self.load_extension("bot.cogs.core")
         await self.load_extension("bot.cogs.automod")
         await self.load_extension("bot.cogs.logs")
-        await self.load_extension("bot.cogs.custom")
-        # await self.load_extension("bot.cogs.music")  # Disabled due to voice issues
+        await self.load_extension("bot.cogs.ai")
 
         await self.tree.sync()
 
@@ -39,7 +33,7 @@ class ScooViceBot(commands.Bot):
         # Set professional presence
         await self.change_presence(
             activity=discord.Activity(
-                type=discord.ActivityType.listening, name="/help | ScooVice's BOT V2"
+                type=discord.ActivityType.listening, name="/help | ScooVice's AI ChatBot"
             ),
             status=discord.Status.online,
         )
