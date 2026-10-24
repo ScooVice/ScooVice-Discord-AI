@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from collections import OrderedDict, deque
@@ -13,6 +14,9 @@ from bot.config import (
 from bot.utils.embeds import warning_embed
 
 
+logger = logging.getLogger(__name__)
+
+
 class AutoMod(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -24,7 +28,7 @@ class AutoMod(commands.Cog):
         self.user_messages = OrderedDict()
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         if message.guild is None or message.author.bot:
             return
         if isinstance(message.author, discord.Member) and (
@@ -69,14 +73,40 @@ class AutoMod(commands.Cog):
             self.user_messages.pop(key, None)
             await self._delete_and_warn(message, "Spam Detected")
 
-    async def _delete_and_warn(self, message, reason: str):
-        await message.delete()
+    async def _delete_and_warn(
+        self, message: discord.Message, reason: str
+    ) -> None:
+        try:
+            await message.delete()
+        except discord.NotFound:
+            return
+        except discord.Forbidden:
+            logger.warning(
+                "AutoMod cannot delete message %s in channel %s",
+                message.id,
+                message.channel.id,
+            )
+            return
+        except discord.HTTPException:
+            logger.exception("AutoMod failed to delete message %s", message.id)
+            return
+
         embed = warning_embed(
             reason,
             f"{message.author.mention}, your message was removed by AutoMod.",
             self.bot,
         )
-        await message.channel.send(embed=embed, delete_after=10)
+        try:
+            await message.channel.send(embed=embed, delete_after=10)
+        except discord.Forbidden:
+            logger.warning(
+                "AutoMod cannot send a warning in channel %s", message.channel.id
+            )
+        except discord.HTTPException:
+            logger.exception(
+                "AutoMod failed to send a warning in channel %s",
+                message.channel.id,
+            )
 
 
 async def setup(bot):

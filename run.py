@@ -1,9 +1,5 @@
-from dotenv import load_dotenv
+from bot.main import run_bot
 
-load_dotenv()
 
-from bot.main import ScooViceBot
-from bot.config import DISCORD_TOKEN
-
-bot = ScooViceBot()
-bot.run(DISCORD_TOKEN)
+if __name__ == "__main__":
+    run_bot()

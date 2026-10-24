@@ -54,8 +54,36 @@ class Admin(commands.Cog):
     async def before_expired_tempban_check(self):
         await self.bot.wait_until_ready()
 
+    def _target_error(
+        self, interaction: discord.Interaction, member: discord.Member
+    ) -> Optional[str]:
+        guild = interaction.guild
+        bot_user = self.bot.user
+        if guild is None or bot_user is None or guild.me is None:
+            return "This command can only be used in a server."
+        if member.id == interaction.user.id:
+            return "You cannot target yourself."
+        if member.id == bot_user.id or member.top_role >= guild.me.top_role:
+            return "I cannot moderate a member with an equal or higher role."
+        if (
+            interaction.user.id != guild.owner_id
+            and member.top_role >= interaction.user.top_role
+        ):
+            return "You cannot moderate a member with an equal or higher role."
+        return None
+
+    async def _send_target_error(
+        self, interaction: discord.Interaction, message: str
+    ) -> None:
+        await interaction.followup.send(
+            embed=error_embed("Action denied", message, self.bot),
+            ephemeral=True,
+        )
+
     @app_commands.command(name="kick", description="Kick a member from the server")
     @app_commands.checks.has_permissions(kick_members=True)
+    @app_commands.checks.bot_has_permissions(kick_members=True)
+    @app_commands.guild_only()
     async def kick(
         self,
         interaction: discord.Interaction,
@@ -64,22 +92,9 @@ class Admin(commands.Cog):
     ):
         await interaction.response.defer()
 
-        if member == interaction.user:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Action denied", "You cannot kick yourself.", self.bot
-                ),
-                ephemeral=True,
-            )
-            return
-
-        if member.top_role >= interaction.guild.me.top_role:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Hierarchy error", "I cannot kick this member.", self.bot
-                ),
-                ephemeral=True,
-            )
+        target_error = self._target_error(interaction, member)
+        if target_error:
+            await self._send_target_error(interaction, target_error)
             return
 
         await member.kick(reason=reason)
@@ -92,6 +107,8 @@ class Admin(commands.Cog):
 
     @app_commands.command(name="ban", description="Ban a member from the server")
     @app_commands.checks.has_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
+    @app_commands.guild_only()
     async def ban(
         self,
         interaction: discord.Interaction,
@@ -100,26 +117,16 @@ class Admin(commands.Cog):
     ):
         await interaction.response.defer()
 
-        if member == interaction.user:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Action denied", "You cannot ban yourself.", self.bot
-                ),
-                ephemeral=True,
-            )
+        target_error = self._target_error(interaction, member)
+        if target_error:
+            await self._send_target_error(interaction, target_error)
             return
 
-        if member.top_role >= interaction.guild.me.top_role:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Hierarchy error", "I cannot ban this member.", self.bot
-                ),
-                ephemeral=True,
-            )
+        guild = interaction.guild
+        if guild is None:
             return
-
-        await interaction.guild.ban(member, reason=reason)
-        self.tempban_store.remove(interaction.guild.id, member.id)
+        await guild.ban(member, reason=reason)
+        self.tempban_store.remove(guild.id, member.id)
 
         await interaction.followup.send(
             embed=success_embed(
@@ -129,32 +136,40 @@ class Admin(commands.Cog):
 
     @app_commands.command(name="unban", description="Unban a user by ID")
     @app_commands.checks.has_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
+    @app_commands.guild_only()
     async def unban(
         self,
         interaction: discord.Interaction,
-        user_id: str,
+        user_id: int,
         reason: Optional[str] = "No reason provided",
     ):
         await interaction.response.defer()
 
-        user = await self.bot.fetch_user(int(user_id))
-        await interaction.guild.unban(user, reason=reason)
-        self.tempban_store.remove(interaction.guild.id, user.id)
+        guild = interaction.guild
+        if guild is None:
+            return
+        user = discord.Object(id=user_id)
+        await guild.unban(user, reason=reason)
+        self.tempban_store.remove(guild.id, user.id)
 
         await interaction.followup.send(
             embed=success_embed(
-                "User unbanned", f"**User:** {user}\n**Reason:** {reason}", self.bot
+                "User unbanned",
+                f"**User ID:** {user_id}\n**Reason:** {reason}",
+                self.bot,
             )
         )
 
     @app_commands.command(name="tempban", description="Temporarily ban a member")
     @app_commands.checks.has_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
     @app_commands.guild_only()
     async def tempban(
         self,
         interaction: discord.Interaction,
         member: discord.Member,
-        days: int,
+        days: app_commands.Range[int, 1, 36500],
         reason: Optional[str] = "No reason provided",
     ):
         await interaction.response.defer()
@@ -171,33 +186,9 @@ class Admin(commands.Cog):
             )
             return
 
-        if days < 1:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Invalid duration",
-                    "Temporary ban duration must be at least 1 day.",
-                    self.bot,
-                ),
-                ephemeral=True,
-            )
-            return
-
-        if member == interaction.user:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Action denied", "You cannot ban yourself.", self.bot
-                ),
-                ephemeral=True,
-            )
-            return
-
-        if member.top_role >= guild.me.top_role:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Hierarchy error", "I cannot ban this member.", self.bot
-                ),
-                ephemeral=True,
-            )
+        target_error = self._target_error(interaction, member)
+        if target_error:
+            await self._send_target_error(interaction, target_error)
             return
 
         expires_at = int((datetime.now(timezone.utc) + timedelta(days=days)).timestamp())
@@ -220,31 +211,20 @@ class Admin(commands.Cog):
     # MUTE (TIMEOUT)
     @app_commands.command(name="mute", description="Timeout a member")
     @app_commands.checks.has_permissions(moderate_members=True)
+    @app_commands.checks.bot_has_permissions(moderate_members=True)
+    @app_commands.guild_only()
     async def mute(
         self,
         interaction: discord.Interaction,
         member: discord.Member,
-        minutes: int,
+        minutes: app_commands.Range[int, 1, 40320],
         reason: Optional[str] = "No reason provided",
     ):
         await interaction.response.defer()
 
-        if member == interaction.user:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Action denied", "You cannot mute yourself.", self.bot
-                ),
-                ephemeral=True,
-            )
-            return
-
-        if member.top_role >= interaction.guild.me.top_role:
-            await interaction.followup.send(
-                embed=error_embed(
-                    "Hierarchy error", "I cannot mute this member.", self.bot
-                ),
-                ephemeral=True,
-            )
+        target_error = self._target_error(interaction, member)
+        if target_error:
+            await self._send_target_error(interaction, target_error)
             return
 
         duration = timedelta(minutes=minutes)
@@ -260,6 +240,8 @@ class Admin(commands.Cog):
 
     @app_commands.command(name="unmute", description="Remove timeout from a member")
     @app_commands.checks.has_permissions(moderate_members=True)
+    @app_commands.checks.bot_has_permissions(moderate_members=True)
+    @app_commands.guild_only()
     async def unmute(
         self,
         interaction: discord.Interaction,
@@ -268,7 +250,12 @@ class Admin(commands.Cog):
     ):
         await interaction.response.defer()
 
-        await member.timeout(None)
+        target_error = self._target_error(interaction, member)
+        if target_error:
+            await self._send_target_error(interaction, target_error)
+            return
+
+        await member.timeout(None, reason=reason)
 
         await interaction.followup.send(
             embed=success_embed(

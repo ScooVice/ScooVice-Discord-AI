@@ -1,74 +1,103 @@
+import logging
+
 import discord
+from discord import app_commands
 from discord.ext import commands
-import os
-from dotenv import load_dotenv
 
 from bot.config import DISCORD_TOKEN
+from bot.utils.embeds import error_embed
+
+
+logger = logging.getLogger(__name__)
+
+
+class ScooViceCommandTree(app_commands.CommandTree):
+    async def on_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        original = getattr(error, "original", error)
+        if isinstance(error, app_commands.MissingPermissions):
+            message = f"You need: {', '.join(error.missing_permissions)}"
+        elif isinstance(error, app_commands.BotMissingPermissions):
+            message = f"I need: {', '.join(error.missing_permissions)}"
+        elif isinstance(error, app_commands.CheckFailure):
+            message = "You don't have permission to use this command."
+        else:
+            message = "An unexpected error occurred. Please try again later."
+            logger.error(
+                "Slash command failed: %s",
+                error,
+                exc_info=(type(original), original, original.__traceback__),
+            )
+
+        try:
+            embed = error_embed("Command Error", message, self.client)
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+        except discord.HTTPException:
+            logger.exception("Could not send slash-command error response")
 
 
 class ScooViceBot(commands.Bot):
-    def __init__(self):
+    extensions = (
+        "bot.cogs.admin",
+        "bot.cogs.core",
+        "bot.cogs.automod",
+        "bot.cogs.logs",
+        "bot.cogs.ai",
+    )
+
+    def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
 
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            tree_cls=ScooViceCommandTree,
+        )
 
-    async def setup_hook(self):
-        await self.load_extension("bot.cogs.admin")
-        await self.load_extension("bot.cogs.core")
-        await self.load_extension("bot.cogs.automod")
-        await self.load_extension("bot.cogs.logs")
-        await self.load_extension("bot.cogs.ai")
+    async def setup_hook(self) -> None:
+        for extension in self.extensions:
+            await self.load_extension(extension)
+            logger.info("Loaded extension %s", extension)
 
-        await self.tree.sync()
+        synced_commands = await self.tree.sync()
+        logger.info("Synced %s slash commands", len(synced_commands))
 
-        print("✅ Slash commands synced")
+    async def on_ready(self) -> None:
+        if self.user is None:
+            logger.error("Discord connected without a bot user")
+            return
 
-    async def on_ready(self):
-        print(f"🚀 Logged in as {self.user}")
-        print(f"🆔 Bot ID: {self.user.id}")
-        print(f"🌐 Servers: {len(self.guilds)}")
-
-        # Set professional presence
+        logger.info(
+            "Logged in as %s (ID %s) in %s servers",
+            self.user,
+            self.user.id,
+            len(self.guilds),
+        )
         await self.change_presence(
             activity=discord.Activity(
-                type=discord.ActivityType.listening, name="/help | ScooVice's AI ChatBot"
+                type=discord.ActivityType.listening,
+                name="/help | ScooVice's AI ChatBot",
             ),
             status=discord.Status.online,
         )
 
+    async def close(self) -> None:
+        logger.info("Shutting down bot")
+        await super().close()
 
-async def on_app_command_error(
-    interaction: discord.Interaction, error: discord.app_commands.AppCommandError
-):
-    from bot.utils.embeds import error_embed
 
-    if isinstance(error, discord.app_commands.MissingPermissions):
-        missing = ", ".join(error.missing_permissions)
-        embed = error_embed(
-            "Missing Permissions", f"You need: {missing}", interaction.client
-        )
-    elif isinstance(error, discord.app_commands.BotMissingPermissions):
-        missing = ", ".join(error.missing_permissions)
-        embed = error_embed(
-            "Bot Missing Permissions", f"I need: {missing}", interaction.client
-        )
-    elif isinstance(error, discord.app_commands.CheckFailure):
-        embed = error_embed(
-            "Check Failed",
-            "You don't have permission to use this command.",
-            interaction.client,
-        )
-    else:
-        embed = error_embed(
-            "Error", f"An error occurred: {str(error)}", interaction.client
-        )
-
-    try:
-        if interaction.response.is_done():
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-    except:
-        pass  # In case of further errors
+def run_bot() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    bot = ScooViceBot()
+    bot.run(DISCORD_TOKEN, log_handler=None)

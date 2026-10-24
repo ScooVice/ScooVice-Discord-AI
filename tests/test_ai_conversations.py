@@ -21,11 +21,21 @@ def make_interaction(user_id: int, guild_id: int):
 
 
 class AIConversationTests(unittest.IsolatedAsyncioTestCase):
+    def test_long_responses_are_split_within_embed_limits(self):
+        response = "word " * 2_000
+        chunks = AI._response_chunks(response)
+
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 4_000 for chunk in chunks))
+        self.assertEqual("".join(chunks), response)
+
     async def test_chat_uses_configured_model_and_isolates_server_history(self):
         bot = SimpleNamespace(
             user=SimpleNamespace(
                 name="ScooVice",
-                avatar=SimpleNamespace(url="https://example.invalid/avatar.png"),
+                display_avatar=SimpleNamespace(
+                    url="https://example.invalid/avatar.png"
+                ),
             )
         )
         cog = AI(bot)

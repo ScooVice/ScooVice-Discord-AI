@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Maintenance has resumed since the v3.0.0 archive notice.
 
+### Added
+
+- Tests for command permission failures, moderator role hierarchy, and AutoMod.
+- Configurable temporary-ban and AI behavior documented in a refreshed GitHub README.
+
+### Changed
+
+- Consolidated embed generation and made avatar/time metadata safe and consistent.
+- Reworked bot startup logging and connected slash-command failures to a
+  centralized, user-friendly error handler.
+- Applied server-only and bot-permission checks to moderation commands, with
+  actor/bot role hierarchy validation and bounded timeout/tempban durations.
+- Bounded in-memory AI history, made per-conversation locks self-cleaning, and
+  split long AI replies into Discord-safe embeds.
+- Improved AutoMod and moderation-log failure reporting instead of allowing
+  missing Discord permissions to fail silently.
+
 ### Fixed
 
 - Temporary bans are stored in SQLite and are resumed after bot restarts.
