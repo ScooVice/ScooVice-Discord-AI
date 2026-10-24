@@ -7,68 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
-
-Maintenance has resumed since the v3.0.0 archive notice.
+## [v3.1.0] - 2026-10-24
 
 ### Added
 
-- Mention/DM-based AI chat; the `/chat` slash command has been removed.
+- Mention/DM-based AI chat.
 - A private `/settings` panel with buttons and dropdowns for reasoning effort,
   completion token cap, and chat history length.
 - A `/voice` panel with buttons to join a user's voice channel or disconnect.
 - Groq token-usage details on AI replies and tests for the interactive controls.
+- Updated all direct Python dependencies to their latest stable releases.
 
 ### Changed
 
 - Default reasoning effort is `low`; server managers can tune it from Discord.
-- Startup logging is concise while warnings and errors remain visible.
-- Added PyNaCl for Discord voice connections.
-- Refreshed setup, feature, configuration, and voice documentation.
+- Added a styled terminal startup banner with bot, server, command, and voice status.
+- Updated Discord voice support for the current DAVE protocol and its required packages.
+- Updated PyNaCl to `1.6.2`, resolving two advisories affecting the older voice dependency.
+- Applied a consistent visual style to bot embeds.
+- Refreshed setup, feature, configuration, dependency, and voice documentation.
 
 ### Fixed
 
-- Bot no longer advertises a `/chat` slash command; mention the bot or DM it.
+- The `/help` guide now reflects the current mention-based AI chat and commands.
+- Voice controls acknowledge interactions before connecting, avoiding expired-button responses.
+- Voice connection failures now identify permission, timeout, and dependency issues.
+- Updated PyNaCl to `1.6.2`, resolving two advisories affecting the older voice dependency.
 - AI replies report API usage and keep configured context lengths.
 - Mention-based AI messages are excluded from AutoMod spam counting.
 
-## [v3.0.0] - 2026-01-08 🚀 **FINAL RELEASE - PROJECT ARCHIVE**
+## [V3.0.0] - 2026-01-08
 
-### 🎉 **The Ultimate Discord Bot - Complete Feature Set**
+This release was originally announced as the final release. Active maintenance
+resumed in 3.1.0.
 
-#### ✨ **New Features**
+### Added
 
-- **🤖 AI Chatbot**: Advanced conversational AI powered by Groq
+- Groq-powered AI chat with conversation memory and a command to clear history.
+- Expanded language support.
 
-  - `/chat <message>` - Natural language conversations
-  - `/clear_chat` - Reset conversation history
-  - Context-aware responses with conversation memory
+### Changed
 
-- **🌍 Enhanced Multi-Language Support**: 9 languages total
-
-  - Added: Spanish, French, German, Portuguese, Russian, Japanese, Korean, Chinese
-  - Per-server and per-user language preferences
-  - Full command translations and localized responses
-
-#### 🔧 **Technical Improvements**
-
-- **New Dependencies**: Added groq
-- **AI Integration**: Groq API client with conversation management
-
-#### 🎨 **User Experience**
-
-- **Updated Branding**: Renamed to ScooVice-Discord-AI
-- **Enhanced Help**: Comprehensive command documentation
-- **Improved Presence**: Updated status message
-
-#### ❌ **Remove Features**
-
-- **Remove Database**
-- **Remove Warning System**
-
-### 📈 **Progress**: **100% Complete - Final Release**
-
-**This is the final version of ScooVice-Discord-AI. The project will now be archived.**
+ - Updated project branding and help documentation.
+ - Removed the warning system and database used by the previous implementation.
 
 ---
 

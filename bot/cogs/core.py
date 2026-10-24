@@ -18,21 +18,33 @@ class Core(commands.Cog):
     @app_commands.command(name="help", description="Show available commands")
     async def help(self, interaction: discord.Interaction):
         embed = info_embed(
-            "ScooVice AI ChatBot Help",
-            "**Moderation Commands:**\n"
-            "/kick - Kick a member\n"
-            "/ban - Ban a member\n"
-            "/tempban - Temporarily ban a member\n"
-            "/unban - Unban a user\n"
-            "/mute - Timeout a member\n"
-            "/unmute - Remove timeout\n"
-            "**AI Commands:**\n"
-            "/chat <message> - Chat with AI\n"
-            "/clear_chat - Clear chat history\n\n"
-            "**Other Commands:**\n"
-            "/ping - Check bot latency\n"
-            "/help - Show this help",
+            "ScooVice Command Center",
+            "Chat with me by mentioning me or sending a direct message. "
+            "Choose a command below to get started.",
             self.bot,
+        )
+        embed.add_field(
+            name="🤖 AI & Voice",
+            value=(
+                "Mention me with a message — Chat with AI\n"
+                "`/clear_chat` — Clear your conversation\n"
+                "`/settings` — Configure AI (server managers)\n"
+                "`/voice` — Open voice controls"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="🛡️ Moderation",
+            value=(
+                "`/kick` · `/ban` · `/tempban` · `/unban`\n"
+                "`/mute` · `/unmute`"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="✨ Utilities",
+            value="`/ping` — Check latency\n`/help` — Show this guide",
+            inline=False,
         )
         await interaction.response.defer()
         await interaction.followup.send(embed=embed)

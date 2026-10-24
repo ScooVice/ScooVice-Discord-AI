@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import discord
@@ -5,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.utils.embeds import error_embed, info_embed, success_embed
+from bot.utils.voice_support import voice_stack_ready
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,14 @@ class VoicePanel(discord.ui.View):
             embed=info_embed(title, description, self.bot),
             ephemeral=True,
         )
+
+    async def _finish(
+        self, interaction: discord.Interaction, embed: discord.Embed
+    ) -> None:
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed)
+        else:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(
         label="Join my voice",
@@ -46,12 +56,38 @@ class VoicePanel(discord.ui.View):
             )
             return
 
+        if not voice_stack_ready():
+            await interaction.response.send_message(
+                embed=error_embed(
+                    "Voice support isn't ready",
+                    "Install the current dependencies with "
+                    "`python -m pip install -r requirements.txt`, then restart "
+                    "the bot.",
+                    self.bot,
+                ),
+                ephemeral=True,
+            )
+            return
+
         bot_member = guild.me
-        if bot_member is None or not channel.permissions_for(bot_member).connect:
+        if bot_member is None:
+            await interaction.response.send_message(
+                embed=error_embed(
+                    "Voice unavailable",
+                    "I couldn't find my server member profile. Try again shortly.",
+                    self.bot,
+                ),
+                ephemeral=True,
+            )
+            return
+
+        permissions = channel.permissions_for(bot_member)
+        if not permissions.view_channel or not permissions.connect:
             await interaction.response.send_message(
                 embed=error_embed(
                     "Voice permission missing",
-                    "I need permission to connect to that voice channel.",
+                    "I need **View Channel** and **Connect** permissions in that "
+                    "voice channel.",
                     self.bot,
                 ),
                 ephemeral=True,
@@ -79,40 +115,62 @@ class VoicePanel(discord.ui.View):
                         ephemeral=True,
                     )
                     return
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            if voice_client and voice_client.is_connected():
                 await voice_client.move_to(channel)
             else:
-                await channel.connect(self_deaf=True)
+                if voice_client is not None:
+                    await voice_client.disconnect(force=True)
+                await channel.connect(
+                    timeout=30.0,
+                    reconnect=True,
+                    self_deaf=True,
+                )
+        except asyncio.TimeoutError:
+            logger.warning("Voice connection timed out for channel %s", channel.id)
+            await self._finish(
+                interaction,
+                error_embed(
+                    "Voice connection timed out",
+                    "Discord didn't finish the voice handshake. Check the bot's "
+                    "voice permissions and update its dependencies with "
+                    "`python -m pip install -r requirements.txt`, then restart it.",
+                    self.bot,
+                ),
+            )
+            return
         except discord.Forbidden:
             logger.warning("Discord denied voice connection to channel %s", channel.id)
-            await interaction.response.send_message(
-                embed=error_embed(
+            await self._finish(
+                interaction,
+                error_embed(
                     "Could not connect",
                     "Discord denied access to that voice channel.",
                     self.bot,
                 ),
-                ephemeral=True,
             )
             return
-        except (discord.ClientException, discord.HTTPException):
+        except (discord.ClientException, discord.HTTPException, OSError):
             logger.exception("Failed to connect to voice channel %s", channel.id)
-            await interaction.response.send_message(
-                embed=error_embed(
+            await self._finish(
+                interaction,
+                error_embed(
                     "Could not connect",
-                    "The voice connection failed. Please try again.",
+                    "The voice connection failed. Confirm the bot has the required "
+                    "voice permissions, update the bot dependencies, and try again.",
                     self.bot,
                 ),
-                ephemeral=True,
             )
             return
 
-        await interaction.response.send_message(
-            embed=success_embed(
+        await self._finish(
+            interaction,
+            success_embed(
                 "Connected",
                 f"I joined **{channel.name}**. This bot currently joins voice "
                 "only; it does not play audio.",
                 self.bot,
             ),
-            ephemeral=True,
         )
 
     @discord.ui.button(
@@ -159,23 +217,24 @@ class VoicePanel(discord.ui.View):
             )
             return
 
+        await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             await voice_client.disconnect(force=True)
         except discord.HTTPException:
             logger.exception("Failed to disconnect from voice in guild %s", guild.id)
-            await interaction.response.send_message(
-                embed=error_embed(
+            await self._finish(
+                interaction,
+                error_embed(
                     "Could not disconnect",
                     "The voice disconnect failed. Please try again.",
                     self.bot,
                 ),
-                ephemeral=True,
             )
             return
 
-        await interaction.response.send_message(
-            embed=success_embed("Disconnected", "I left the voice channel.", self.bot),
-            ephemeral=True,
+        await self._finish(
+            interaction,
+            success_embed("Disconnected", "I left the voice channel.", self.bot),
         )
 
 

@@ -2,22 +2,22 @@
 
 # ScooVice Discord AI
 
-**A practical Discord companion for AI chat and server moderation.**
+**A clean, modern Discord companion for AI chat, moderation, and voice controls.**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![discord.py](https://img.shields.io/badge/discord.py-2.4.0-5865F2?logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
+[![discord.py](https://img.shields.io/badge/discord.py-2.7.1-5865F2?logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
+[![python-dotenv](https://img.shields.io/badge/python--dotenv-1.2.4-3776AB?logo=python&logoColor=white)](https://pypi.org/project/python-dotenv/)
 [![Groq SDK](https://img.shields.io/badge/Groq%20SDK-1.7.0-F55036)](https://pypi.org/project/groq/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-[Features](#features) · [Commands](#commands) · [Setup](#getting-started) · [Configuration](#configuration) · [Roadmap](#project-status)
+[Features](#features) · [Commands](#commands) · [Setup](#getting-started) · [Configuration](#configuration) · [Development](#development)
 
 </div>
 
 ---
 
-ScooVice Discord AI brings everyday moderation tools, mention-based AI chat,
-and one-click voice controls into one Python-powered Discord bot. It keeps
-temporary ban schedules and server AI settings across restarts.
+ScooVice Discord AI combines mention-based Groq chat, interactive AI and voice
+controls, and practical server moderation in one Python Discord bot.
 
 ## Features
 
@@ -42,7 +42,7 @@ temporary ban schedules and server AI settings across restarts.
 - Groq's free tier has usage and rate limits; it is not unlimited. Check your
   account's current limits in the Groq Console.
 - Keep the `data/` directory on persistent storage if the bot is hosted. It
-  contains the SQLite database used for temporary-ban schedules.
+  contains SQLite databases for temporary bans and server AI settings.
 
 ## Commands
 
@@ -78,7 +78,7 @@ Intent** under *Bot → Privileged Gateway Intents*.
 Invite the bot using the `bot` and `applications.commands` OAuth2 scopes.
 Grant the permissions for the commands you plan to use:
 
-- View Channels and Send Messages
+- View Channels, Send Messages, and Connect to Voice
 - Embed Links
 - Manage Messages (AutoMod)
 - Kick Members, Ban Members, and Moderate Members (moderation commands)
@@ -93,7 +93,9 @@ Groq and can change.
 
 ### 3. Install and configure
 
-Python 3.10 or newer is required. From the repository directory:
+Python 3.10 or newer is required. The dependency pins below are the latest
+stable direct releases checked on October 24, 2026. Voice support includes
+explicitly pinned DAVE and PyNaCl packages. From the repository directory:
 
 ```powershell
 py -3 -m venv .venv
@@ -114,15 +116,31 @@ cp .env.example .env
 Open `.env` and enter your Discord token and Groq API key. Never commit this
 file or share either secret.
 
+### Runtime dependencies
+
+Direct dependency versions checked against the latest stable PyPI releases on
+October 24, 2026:
+
+| Package | Version | Purpose |
+| --- | --- | --- |
+| `discord.py` | `2.7.1` | Discord API and current voice protocol support. |
+| `PyNaCl` | `1.6.2` | Patched voice encryption dependency. |
+| `davey` | `0.1.7` | Discord DAVE voice protocol support. |
+| `python-dotenv` | `1.2.4` | Load local environment configuration. |
+| `groq` | `1.7.0` | Groq API client. |
+
+The pins are in [`requirements.txt`](requirements.txt). Reinstall them after
+updating the project to pick up the declared runtime versions.
+
 ### 4. Run the bot
 
 ```bash
 python run.py
 ```
 
-The bot loads its slash commands at startup. Keep the process running and
-ensure `data/` is persisted by your host. Startup output is intentionally
-minimal; errors and warnings are still logged.
+The bot loads its slash commands at startup and prints a styled status banner
+when it connects. Keep the process running and ensure `data/` is persisted by
+your host. Warnings and errors remain visible in the terminal.
 
 ## Configuration
 
@@ -182,8 +200,11 @@ still apply.
 Run `/voice`, connect to your voice channel, and press **Join my voice**. The
 bot joins deafened and silent. Press **Leave voice** to disconnect. Moving the
 bot out of a different voice channel is restricted to server managers. The
-bot needs **Connect** permission in the destination channel. Voice audio
-playback and voice-based AI conversations are not currently implemented.
+bot needs **View Channel** and **Connect** permissions in the destination
+channel. Voice support uses a current Discord voice protocol implementation;
+install dependencies from `requirements.txt` after updating the project.
+Voice audio playback and voice-based AI conversations are not currently
+implemented.
 
 ## Development
 
@@ -197,15 +218,22 @@ python -m compileall -q bot tests
 Tests cover mention-based AI request settings and conversation isolation,
 durable temporary-ban schedules, moderation role checks, AutoMod behavior,
 Discord error responses, settings persistence and access checks, and mocked
-voice join/leave controls.
+voice join/leave controls, startup output, embeds, and the Discord help guide.
+
+To scan the declared dependencies against known vulnerability advisories,
+install `pip-audit` in your development environment and run:
+
+```bash
+python -m pip_audit -r requirements.txt
+```
 
 ## Project status
 
-This repository was previously marked archived. Maintenance has resumed for
-the updates documented in the changelog. The project is maintained as a
-community bot rather than a hosted service; operators are responsible for
-keeping secrets safe, enabling required Discord intents, and preserving the
-bot's data directory.
+This is an actively maintained community bot, not a hosted service. Operators
+are responsible for keeping secrets safe, enabling required Discord intents,
+and preserving the bot's data directory. See the
+[latest release](https://github.com/ScooVice/ScooVice-Discord-AI/releases/latest)
+and [changelog](CHANGELOG.md) for updates.
 
 ## License
 

@@ -1,8 +1,9 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import discord
 
@@ -99,7 +100,9 @@ class SettingsVoiceTests(unittest.IsolatedAsyncioTestCase):
         channel = SimpleNamespace(
             id=30,
             name="General",
-            permissions_for=Mock(return_value=SimpleNamespace(connect=True)),
+            permissions_for=Mock(
+                return_value=SimpleNamespace(view_channel=True, connect=True)
+            ),
             connect=AsyncMock(),
         )
         member = Mock(spec=discord.Member)
@@ -110,34 +113,111 @@ class SettingsVoiceTests(unittest.IsolatedAsyncioTestCase):
             me=SimpleNamespace(),
             voice_client=None,
         )
-        join_response = SimpleNamespace(send_message=AsyncMock())
+        join_response = SimpleNamespace(
+            send_message=AsyncMock(),
+            defer=AsyncMock(),
+            is_done=Mock(return_value=True),
+        )
         join_interaction = SimpleNamespace(
             guild=guild,
             user=member,
             response=join_response,
+            edit_original_response=AsyncMock(),
         )
 
         await join_button.callback(join_interaction)
 
-        channel.connect.assert_awaited_once_with(self_deaf=True)
-        join_response.send_message.assert_awaited_once()
+        channel.connect.assert_awaited_once_with(
+            timeout=30.0,
+            reconnect=True,
+            self_deaf=True,
+        )
+        join_response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        join_interaction.edit_original_response.assert_awaited_once()
 
         voice_client = SimpleNamespace(
             channel=channel,
             disconnect=AsyncMock(),
         )
         guild.voice_client = voice_client
-        leave_response = SimpleNamespace(send_message=AsyncMock())
+        leave_response = SimpleNamespace(
+            send_message=AsyncMock(),
+            defer=AsyncMock(),
+            is_done=Mock(return_value=True),
+        )
         leave_interaction = SimpleNamespace(
             guild=guild,
             user=member,
             response=leave_response,
+            edit_original_response=AsyncMock(),
         )
 
         await leave_button.callback(leave_interaction)
 
         voice_client.disconnect.assert_awaited_once_with(force=True)
-        leave_response.send_message.assert_awaited_once()
+        leave_response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        leave_interaction.edit_original_response.assert_awaited_once()
+
+    async def test_voice_connection_timeout_updates_deferred_response(self):
+        view = VoicePanel(self.bot)
+        join_button = next(item for item in view.children if item.label == "Join my voice")
+        channel = SimpleNamespace(
+            id=30,
+            name="General",
+            permissions_for=Mock(
+                return_value=SimpleNamespace(view_channel=True, connect=True)
+            ),
+            connect=AsyncMock(side_effect=asyncio.TimeoutError),
+        )
+        member = Mock(spec=discord.Member)
+        member.voice = SimpleNamespace(channel=channel)
+        member.guild_permissions = SimpleNamespace(manage_channels=False)
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(
+                id=10,
+                me=SimpleNamespace(),
+                voice_client=None,
+            ),
+            user=member,
+            response=SimpleNamespace(
+                send_message=AsyncMock(),
+                defer=AsyncMock(),
+                is_done=Mock(return_value=True),
+            ),
+            edit_original_response=AsyncMock(),
+        )
+
+        await join_button.callback(interaction)
+
+        interaction.response.defer.assert_awaited_once_with(
+            ephemeral=True,
+            thinking=True,
+        )
+        interaction.edit_original_response.assert_awaited_once()
+        error_embed = interaction.edit_original_response.await_args.kwargs["embed"]
+        self.assertIn("timed out", error_embed.title.lower())
+
+    async def test_voice_control_reports_missing_protocol_dependencies(self):
+        view = VoicePanel(self.bot)
+        join_button = next(item for item in view.children if item.label == "Join my voice")
+        channel = SimpleNamespace(id=30, name="General")
+        member = Mock(spec=discord.Member)
+        member.voice = SimpleNamespace(channel=channel)
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=10),
+            user=member,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+
+        with patch(
+            "bot.cogs.voice.voice_stack_ready",
+            return_value=False,
+        ):
+            await join_button.callback(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        error_embed = interaction.response.send_message.await_args.kwargs["embed"]
+        self.assertIn("Voice support isn't ready", error_embed.title)
 
 
 if __name__ == "__main__":

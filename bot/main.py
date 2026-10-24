@@ -1,4 +1,5 @@
 import logging
+import sys
 
 import discord
 from discord import app_commands
@@ -6,9 +7,41 @@ from discord.ext import commands
 
 from bot.config import DISCORD_TOKEN
 from bot.utils.embeds import error_embed
+from bot.utils.voice_support import voice_stack_ready
 
 
 logger = logging.getLogger(__name__)
+
+
+def print_startup_banner(bot: commands.Bot, command_count: int) -> None:
+    use_color = sys.stdout.isatty()
+    accent = "\033[96m" if use_color else ""
+    green = "\033[92m" if use_color else ""
+    red = "\033[91m" if use_color else ""
+    dim = "\033[90m" if use_color else ""
+    reset = "\033[0m" if use_color else ""
+    voice_ready = voice_stack_ready()
+    voice_status = (
+        f"{green}Ready · DAVE + PyNaCl{reset}"
+        if voice_ready
+        else f"{red}Missing voice packages{reset}"
+    )
+    name = bot.user.name if bot.user else "ScooVice Discord AI"
+    guild_count = len(bot.guilds)
+
+    print()
+    print(f"{accent}╭──────────────────────────────────────────────────╮{reset}")
+    print(f"{accent}│{reset}  ✨ {name}")
+    print(f"{accent}├──────────────────────────────────────────────────┤{reset}")
+    print(f"{accent}│{reset}  ✅ Status       Online")
+    print(f"{accent}│{reset}  🌐 Servers      {guild_count}")
+    print(f"{accent}│{reset}  ⚡ Commands     {command_count} synced")
+    print(f"{accent}│{reset}  🔊 Voice        {voice_status}")
+    print(
+        f"{accent}╰──────────────────────────────────────────────────╯{reset}"
+    )
+    print(f"{dim}  Press Ctrl+C to stop the bot.{reset}")
+    print()
 
 
 class ScooViceCommandTree(app_commands.CommandTree):
@@ -71,13 +104,19 @@ class ScooViceBot(commands.Bot):
 
         synced_commands = await self.tree.sync()
         logger.info("Synced %s slash commands", len(synced_commands))
+        self.synced_command_count = len(synced_commands)
 
     async def on_ready(self) -> None:
         if self.user is None:
             logger.error("Discord connected without a bot user")
             return
 
-        print(f"Bot online: {self.user}")
+        if not getattr(self, "_startup_banner_shown", False):
+            print_startup_banner(
+                self,
+                getattr(self, "synced_command_count", len(self.tree.get_commands())),
+            )
+            self._startup_banner_shown = True
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,

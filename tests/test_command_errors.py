@@ -32,7 +32,7 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
 
         response.send_message.assert_awaited_once()
         sent_embed = response.send_message.await_args.kwargs["embed"]
-        self.assertEqual(sent_embed.title, "Command Error")
+        self.assertEqual(sent_embed.title, "⛔  Command Error")
         self.assertIn("ban_members", sent_embed.description)
         self.assertTrue(response.send_message.await_args.kwargs["ephemeral"])
         await bot.close()
