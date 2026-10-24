@@ -1,83 +1,105 @@
-# Clear proxy environment variables to prevent Groq client issues
-import os
-os.environ.pop('HTTP_PROXY', None)
-os.environ.pop('HTTPS_PROXY', None)
-os.environ.pop('http_proxy', None)
-os.environ.pop('https_proxy', None)
-
+import asyncio
+import logging
 import discord
 from discord import app_commands
 from discord.ext import commands
 import httpx
-from groq import Groq
-from bot.config import GROQ_API_KEY
+from groq import APIError, AsyncGroq
+from bot.config import GROQ_API_KEY, GROQ_MODEL
 from bot.utils.embeds import info_embed, error_embed
+
+
+logger = logging.getLogger(__name__)
 
 
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Create httpx client without trusting environment proxies
-        http_client = httpx.Client(trust_env=False)
-        self.client = Groq(api_key=GROQ_API_KEY, http_client=http_client)
-        self.conversations = {}  # user_id: list of messages
+        http_client = httpx.AsyncClient(trust_env=False)
+        self.client = AsyncGroq(api_key=GROQ_API_KEY, http_client=http_client)
+        self.conversations = {}
+        self.conversation_locks = {}
 
-    def get_conversation(self, user_id):
-        if user_id not in self.conversations:
-            self.conversations[user_id] = []
-        return self.conversations[user_id]
+    async def cog_unload(self):
+        await self.client.close()
 
-    def add_message(self, user_id, role, content):
-        conv = self.get_conversation(user_id)
-        conv.append({"role": role, "content": content})
-        # Keep only last 20 messages to avoid token limits
-        if len(conv) > 20:
-            conv.pop(0)
+    def _conversation_key(self, interaction: discord.Interaction) -> tuple:
+        return (interaction.guild_id, interaction.user.id)
+
+    def _get_lock(self, key: tuple) -> asyncio.Lock:
+        if key not in self.conversation_locks:
+            self.conversation_locks[key] = asyncio.Lock()
+        return self.conversation_locks[key]
 
     @app_commands.command(name="chat", description="Chat with AI assistant")
     async def chat(self, interaction: discord.Interaction, message: str):
-        await interaction.response.defer()
+        await interaction.response.defer(thinking=True)
+        key = self._conversation_key(interaction)
+        lock = self._get_lock(key)
 
-        try:
-            # Add user message to conversation
-            self.add_message(interaction.user.id, "user", message)
+        async with lock:
+            conversation = self.conversations.setdefault(key, [])
+            conversation.append({"role": "user", "content": message})
 
-            # Get conversation history
-            conversation = self.get_conversation(interaction.user.id)
-
-            # Create system prompt
             system_prompt = {
                 "role": "system",
-                "content": "You are ScooVice AI, a helpful and friendly Discord bot assistant. Keep responses concise and engaging. You have access to various Discord features and can help with moderation and general chat."
+                "content": (
+                    "You are ScooVice AI, a helpful and friendly Discord bot "
+                    "assistant. Keep responses concise and engaging. You can help "
+                    "with Discord-related questions and general chat."
+                ),
             }
 
-            messages = [system_prompt] + conversation
-
-            # Get response from Groq
-            response = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=messages,
-                max_tokens=500,
-                temperature=0.7
-            )
+            try:
+                response = await self.client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=[system_prompt, *conversation],
+                    max_completion_tokens=500,
+                    temperature=0.7,
+                )
+            except APIError:
+                conversation.pop()
+                logger.exception("Groq request failed for user %s", interaction.user.id)
+                await interaction.followup.send(
+                    embed=error_embed(
+                        "AI Error",
+                        "The AI service could not respond. Please try again later.",
+                        self.bot,
+                    ),
+                    ephemeral=True,
+                )
+                return
 
             ai_response = response.choices[0].message.content
+            if not ai_response:
+                conversation.pop()
+                logger.error(
+                    "Groq returned an empty response for user %s",
+                    interaction.user.id,
+                )
+                await interaction.followup.send(
+                    embed=error_embed(
+                        "AI Error",
+                        "The AI service returned an empty response. Please try again.",
+                        self.bot,
+                    ),
+                    ephemeral=True,
+                )
+                return
 
-            # Add AI response to conversation
-            self.add_message(interaction.user.id, "assistant", ai_response)
+            conversation.append({"role": "assistant", "content": ai_response})
+            if len(conversation) > 20:
+                del conversation[:2]
 
-            # Send response
             embed = info_embed("ScooVice AI", ai_response, self.bot)
             embed.set_footer(text=f"Chat with {interaction.user.display_name}")
-            
             await interaction.followup.send(embed=embed)
-
-        except Exception as e:
-            await interaction.followup.send(embed=error_embed("AI Error", f"Failed to get AI response: {str(e)}", self.bot), ephemeral=True)
 
     @app_commands.command(name="clear_chat", description="Clear your chat history with AI")
     async def clear_chat(self, interaction: discord.Interaction):
-        self.conversations.pop(interaction.user.id, None)
+        key = self._conversation_key(interaction)
+        async with self._get_lock(key):
+            self.conversations.pop(key, None)
         await interaction.response.send_message(embed=info_embed("Chat Cleared", "Your conversation history has been cleared.", self.bot), ephemeral=True)
 
 

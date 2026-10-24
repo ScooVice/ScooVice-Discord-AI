@@ -1,146 +1,69 @@
-# 🤖 ScooVice-Discord-AI
+# ScooVice-Discord-AI
 
-[![Python](https://img.shields.io/badge/Python-3.13-blue)](https://www.python.org/)
-[![discord.py](https://img.shields.io/badge/discord.py-2.4.0-blue)](https://discordpy.readthedocs.io/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.0.0-orange)](CHANGELOG.md)
+A Discord bot with moderation commands, configurable AutoMod, and AI chat
+powered by Groq.
 
-> **The Ultimate Discord Companion** – ScooVice-Discord-AI combines advanced moderation and AI conversations in one powerful bot. Experience seamless integration with Groq AI for modern Discord communities.
+## Features
 
-## 🌟 What's New in v3.0.0 – The Final Evolution!
+- Moderation slash commands: `/kick`, `/ban`, `/tempban`, `/unban`, `/mute`,
+  and `/unmute`.
+- `/tempban` schedules unbanning in a local SQLite database, so its schedule
+  survives bot restarts. Keep the `data` directory on persistent storage.
+- `/chat` uses the Groq model configured by `GROQ_MODEL` and keeps up to 20
+  recent messages per user and server in memory. `/clear_chat` clears that
+  history. Chat history is not persisted across restarts.
+- AutoMod's spam check removes a user's sixth message within 10 seconds.
+  Banned-word, link, and excessive-caps checks are configurable and disabled
+  unless enabled in `.env`.
+- `/help` and `/ping`.
 
-This is the **final major update** that transforms ScooVice-Discord-AI into the most comprehensive Discord bot available. Featuring cutting-edge AI integration and multi-language support—all designed for modern Discord communities.
+## Requirements
 
-- 🤖 **AI-Powered Conversations**: Natural language chat using Groq's advanced AI models.
-- 🌍 **Global Language Support**: 9 languages including English, Spanish, French, German, Portuguese, Russian, Japanese, Korean, and Chinese.
-- ⚡ **Enhanced Performance**: Optimized for high-traffic servers with zero downtime.
+- Python 3.10 or newer
+- A Discord bot token
+- A Groq API key
 
-## ✨ Features
+The Groq free plan has usage and rate limits; it is not unlimited. Check your
+Groq account for its current limits.
 
-### 🛡️ **Advanced Moderation System**
+## Setup
 
-- **Admin Commands**: Kick, ban, tempban, mute, unmute with permission and role checks.
-- **Smart Warning System**: Automatic timeout at 3 warnings, with reset and logging.
-- **Auto-Moderation**: Real-time detection of banned words, excessive caps, links, and spam.
-
-### 🤖 **AI Chatbot**
-
-- **Conversational AI**: Powered by Groq's Mixtral model for natural interactions.
-- **Context Awareness**: Remembers conversation history for coherent chats.
-- **Helpful Assistant**: Can assist with Discord-related questions and general chat.
-
-### 🌍 **Enhanced Multi-Language Support**
-
-- **9 Languages**: Full command translations and localized responses.
-- **Per-Server Settings**: Configure language preferences per server.
-- **User Preferences**: Individual language settings for personalized experience.
-
-### 🎛️ **Customizable & Extensible**
-
-- **Global Error Handling**: Professional responses for all errors.
-
-### 🚀 **Performance & Reliability**
-
-- **Async Architecture**: Handles high-traffic servers without lag.
-- **Stable Sync**: Global command synchronization prevents duplicates.
-- **Zero Crashes**: Comprehensive error catching and graceful failures.
-
-## 📦 Installation
-
-### Prerequisites
-
-- Python 3.13+
-- Discord Bot Token (from [Discord Developer Portal](https://discord.com/developers/applications))
-- Groq API Key (from [Groq Console](https://console.groq.com/))
-
-### Setup Steps
-
-1. **Clone the Repository**:
-
-   ```bash
-   git clone https://github.com/ScooVice/ScooVice-Discord-AI.git
-   cd ScooVice-Discord-AI
-   ```
-
-2. **Install Dependencies**:
+1. Install dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment**:
-   Create a `.env` file in the root directory:
+2. Copy `.env.example` to `.env` and fill in `DISCORD_TOKEN` and
+   `GROQ_API_KEY`. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`.
 
-   ```
-   DISCORD_TOKEN=your_bot_token_here
-   GROQ_API_KEY=your_groq_api_key_here
+3. Optionally configure AutoMod in `.env`:
+
+   ```env
+   AUTOMOD_BANNED_WORDS=word1,word2
+   AUTOMOD_BLOCK_LINKS=false
+   AUTOMOD_BLOCK_EXCESSIVE_CAPS=false
    ```
 
-4. **Run the Bot**:
+   Banned words are matched as whole words, case-insensitively. Set link or
+   caps checks to `true` only if you want those rules enabled. Spam detection
+   is enabled by default. The bot needs **Manage Messages**, **Send Messages**,
+   and **Embed Links** permissions, and the Message Content intent enabled in
+   the Discord Developer Portal for AutoMod to work.
+
+4. Start the bot:
 
    ```bash
    python run.py
    ```
 
-5. **Invite to Server**:
-   Use the OAuth2 URL from Discord Developer Portal with `bot` and `applications.commands` scopes.
+Invite the bot with the `bot` and `applications.commands` OAuth2 scopes, and
+grant only the permissions it needs for the commands you plan to use.
 
-## 🎮 Usage
+## Commands
 
-Once running, ScooVice-Discord-AI will automatically sync commands and display "Listening to /help | ScooVice's AI ChatBot" in its status.
-
-### Command Categories
-
-#### 🛡️ **Moderation Commands**
-
-- `/kick <user> [reason]`: Remove a user from the server.
-- `/ban <user> [reason]`: Permanently ban a user.
-- `/tempban <user> <days> [reason]`: Temporarily ban for specified days.
-- `/unban <user_id>`: Unban a user by ID.
-- `/mute <user> <minutes> [reason]`: Timeout a user for minutes.
-- `/unmute <user>`: Remove timeout from a user.
-
-#### 🤖 **AI Commands**
-
-- `/chat <message>`: Chat with the AI assistant.
-- `/clear_chat`: Clear your conversation history.
-
-#### 🎛️ **Utility Commands**
-
-- `/help`: Display all available commands with descriptions.
-- `/ping`: Check bot latency.
-
-#### 🔧 **Auto-Moderation**
-
-- Automatically detects and handles violations in real-time.
-- Configurable banned words in `bot/cogs/automod.py`.
-
-## 📋 Requirements
-
-- `discord.py==2.4.0`
-- `python-dotenv==1.0.1`
-- `groq==0.9.0`
-
-See `requirements.txt` for full list.
-
-## 📜 License
-
-This project is licensed under the GNU General Public License V3 - see the [LICENSE](LICENSE) file for details.
-
-## 📈 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and updates.
-
-## 🏁 Project Archive Notice
-
-**This is the final version (v3.0.0) of ScooVice-Discord-AI.** After this release, the project will be archived and no further updates will be provided. All v2 and v3 related content will be removed from scripts and GitHub.
-
-The bot remains fully functional and ready for production use. Thank you to everyone who has used and contributed to this project over the years!
-
-If you have suggestions or want to report bugs, visit [ScooVice's GitHub](https://github.com/ScooVice)!
-
----
-
-**Built with ❤️ for the Discord community. Ready to elevate your server to the next level!** 🚀
-
-#ScooVice-Discord-AI #DiscordBot #v3.0.0 #Archive
+- `/chat <message>` and `/clear_chat`
+- `/kick <member> [reason]`, `/ban <member> [reason]`, `/unban <user_id>`
+- `/tempban <member> <days> [reason]` (minimum one day)
+- `/mute <member> <minutes> [reason]` and `/unmute <member> [reason]`
+- `/help` and `/ping`

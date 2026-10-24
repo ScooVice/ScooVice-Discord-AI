@@ -1,73 +1,82 @@
+import re
+import time
+from collections import OrderedDict, deque
+
 import discord
 from discord.ext import commands
+
+from bot.config import (
+    AUTOMOD_BANNED_WORDS,
+    AUTOMOD_BLOCK_EXCESSIVE_CAPS,
+    AUTOMOD_BLOCK_LINKS,
+)
 from bot.utils.embeds import warning_embed
-import re
 
 
 class AutoMod(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.banned_words = ["badword1", "badword2"]  # Customize this list
-        self.spam_threshold = 5  # Messages per 10 seconds
-        self.user_messages = {}  # Track user messages for spam
+        self.banned_words = AUTOMOD_BANNED_WORDS
+        self.block_links = AUTOMOD_BLOCK_LINKS
+        self.block_excessive_caps = AUTOMOD_BLOCK_EXCESSIVE_CAPS
+        self.spam_threshold = 5
+        self.spam_window = 10
+        self.user_messages = OrderedDict()
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        if message.guild is None or message.author.bot:
+            return
+        if isinstance(message.author, discord.Member) and (
+            message.author.guild_permissions.manage_messages
+        ):
+            return
+        if isinstance(self.bot.command_prefix, str) and message.content.startswith(
+            self.bot.command_prefix
+        ):
             return
 
-        # Check for banned words
-        if any(word in message.content.lower() for word in self.banned_words):
-            await message.delete()
-            embed = warning_embed(
-                "Banned Word Detected",
-                f"{message.author.mention}, your message contained a banned word.",
-                self.bot,
-            )
-            await message.channel.send(embed=embed, delete_after=10)
-
-        # Check for excessive caps (more than 70% caps)
-        content = re.sub(r"[^a-zA-Z]", "", message.content)
-        if (
-            len(content) > 5
-            and (sum(1 for c in content if c.isupper()) / len(content)) > 0.7
+        content = message.content
+        folded_content = content.casefold()
+        if any(
+            re.search(rf"(?<!\w){re.escape(word)}(?!\w)", folded_content)
+            for word in self.banned_words
         ):
-            await message.delete()
-            embed = warning_embed(
-                "Excessive Caps",
-                f"{message.author.mention}, please avoid excessive caps.",
-                self.bot,
-            )
-            await message.channel.send(embed=embed, delete_after=10)
+            await self._delete_and_warn(message, "Banned Word Detected")
+            return
 
-        # Check for links (basic)
-        if re.search(r"http[s]?://", message.content):
-            await message.delete()
-            embed = warning_embed(
-                "Links Not Allowed",
-                f"{message.author.mention}, links are not permitted here.",
-                self.bot,
-            )
-            await message.channel.send(embed=embed, delete_after=10)
+        if self.block_excessive_caps:
+            letters = [character for character in content if character.isalpha()]
+            if len(letters) > 5 and sum(c.isupper() for c in letters) / len(letters) > 0.7:
+                await self._delete_and_warn(message, "Excessive Caps")
+                return
 
-        # Basic spam detection
-        user_id = message.author.id
-        now = message.created_at.timestamp()
-        if user_id not in self.user_messages:
-            self.user_messages[user_id] = []
-        self.user_messages[user_id].append(now)
-        # Remove old messages
-        self.user_messages[user_id] = [
-            t for t in self.user_messages[user_id] if now - t < 10
-        ]
-        if len(self.user_messages[user_id]) > self.spam_threshold:
-            await message.delete()
-            embed = warning_embed(
-                "Spam Detected",
-                f"{message.author.mention}, please stop spamming.",
-                self.bot,
-            )
-            await message.channel.send(embed=embed, delete_after=10)
+        if self.block_links and re.search(r"(?:https?://|www\.)\S+", content, re.IGNORECASE):
+            await self._delete_and_warn(message, "Links Not Allowed")
+            return
+
+        key = (message.guild.id, message.author.id)
+        now = time.monotonic()
+        timestamps = self.user_messages.pop(key, deque())
+        while timestamps and now - timestamps[0] >= self.spam_window:
+            timestamps.popleft()
+        timestamps.append(now)
+        self.user_messages[key] = timestamps
+        if len(self.user_messages) > 10_000:
+            self.user_messages.popitem(last=False)
+
+        if len(timestamps) > self.spam_threshold:
+            self.user_messages.pop(key, None)
+            await self._delete_and_warn(message, "Spam Detected")
+
+    async def _delete_and_warn(self, message, reason: str):
+        await message.delete()
+        embed = warning_embed(
+            reason,
+            f"{message.author.mention}, your message was removed by AutoMod.",
+            self.bot,
+        )
+        await message.channel.send(embed=embed, delete_after=10)
 
 
 async def setup(bot):

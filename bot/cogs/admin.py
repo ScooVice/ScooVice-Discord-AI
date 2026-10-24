@@ -1,15 +1,58 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
-from datetime import timedelta
+import logging
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
+
 from bot.utils.embeds import success_embed, error_embed, warning_embed
+from bot.utils.tempban_store import TempBanStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class Admin(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        database_path = Path(__file__).resolve().parents[2] / "data" / "tempbans.sqlite3"
+        self.tempban_store = TempBanStore(database_path)
+
+    async def cog_load(self):
+        self.expired_tempban_check.start()
+
+    async def cog_unload(self):
+        self.expired_tempban_check.cancel()
+
+    @tasks.loop(seconds=30)
+    async def expired_tempban_check(self):
+        now = int(datetime.now(timezone.utc).timestamp())
+        for guild_id, user_id in self.tempban_store.expired(now):
+            guild = self.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+
+            try:
+                await guild.unban(
+                    discord.Object(id=user_id),
+                    reason="Temporary ban expired",
+                )
+            except discord.NotFound:
+                self.tempban_store.remove(guild_id, user_id)
+            except discord.HTTPException:
+                logger.exception(
+                    "Failed to expire temporary ban for user %s in guild %s",
+                    user_id,
+                    guild_id,
+                )
+            else:
+                self.tempban_store.remove(guild_id, user_id)
+
+    @expired_tempban_check.before_loop
+    async def before_expired_tempban_check(self):
+        await self.bot.wait_until_ready()
 
     @app_commands.command(name="kick", description="Kick a member from the server")
     @app_commands.checks.has_permissions(kick_members=True)
@@ -76,6 +119,7 @@ class Admin(commands.Cog):
             return
 
         await interaction.guild.ban(member, reason=reason)
+        self.tempban_store.remove(interaction.guild.id, member.id)
 
         await interaction.followup.send(
             embed=success_embed(
@@ -95,6 +139,7 @@ class Admin(commands.Cog):
 
         user = await self.bot.fetch_user(int(user_id))
         await interaction.guild.unban(user, reason=reason)
+        self.tempban_store.remove(interaction.guild.id, user.id)
 
         await interaction.followup.send(
             embed=success_embed(
@@ -104,6 +149,7 @@ class Admin(commands.Cog):
 
     @app_commands.command(name="tempban", description="Temporarily ban a member")
     @app_commands.checks.has_permissions(ban_members=True)
+    @app_commands.guild_only()
     async def tempban(
         self,
         interaction: discord.Interaction,
@@ -112,6 +158,29 @@ class Admin(commands.Cog):
         reason: Optional[str] = "No reason provided",
     ):
         await interaction.response.defer()
+
+        guild = interaction.guild
+        if guild is None:
+            await interaction.followup.send(
+                embed=error_embed(
+                    "Server only",
+                    "Temporary bans can only be used in a server.",
+                    self.bot,
+                ),
+                ephemeral=True,
+            )
+            return
+
+        if days < 1:
+            await interaction.followup.send(
+                embed=error_embed(
+                    "Invalid duration",
+                    "Temporary ban duration must be at least 1 day.",
+                    self.bot,
+                ),
+                ephemeral=True,
+            )
+            return
 
         if member == interaction.user:
             await interaction.followup.send(
@@ -122,7 +191,7 @@ class Admin(commands.Cog):
             )
             return
 
-        if member.top_role >= interaction.guild.me.top_role:
+        if member.top_role >= guild.me.top_role:
             await interaction.followup.send(
                 embed=error_embed(
                     "Hierarchy error", "I cannot ban this member.", self.bot
@@ -131,17 +200,13 @@ class Admin(commands.Cog):
             )
             return
 
-        duration = timedelta(days=days)
-        await member.ban(reason=reason, delete_message_days=0)
-
-        # Schedule unban
-        import asyncio
-
-        async def unban_after():
-            await asyncio.sleep(duration.total_seconds())
-            await interaction.guild.unban(member)
-
-        self.bot.loop.create_task(unban_after())
+        expires_at = int((datetime.now(timezone.utc) + timedelta(days=days)).timestamp())
+        self.tempban_store.schedule(guild.id, member.id, expires_at)
+        try:
+            await member.ban(reason=reason, delete_message_seconds=0)
+        except discord.HTTPException:
+            self.tempban_store.remove(guild.id, member.id)
+            raise
 
         await interaction.followup.send(
             embed=success_embed(

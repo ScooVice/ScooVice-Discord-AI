@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+Maintenance has resumed since the v3.0.0 archive notice.
+
+### Fixed
+
+- Temporary bans are stored in SQLite and are resumed after bot restarts.
+- AI requests use Groq's asynchronous client and keep separate in-memory
+  conversations for each user and server.
+- AutoMod no longer blocks sample placeholder words or all links by default;
+  optional rules can be configured through environment variables.
+- Updated the Groq SDK dependency and corrected setup and feature documentation.
+
 ## [v3.0.0] - 2026-01-08 🚀 **FINAL RELEASE - PROJECT ARCHIVE**
 
 ### 🎉 **The Ultimate Discord Bot - Complete Feature Set**
