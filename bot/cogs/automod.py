@@ -35,6 +35,8 @@ class AutoMod(commands.Cog):
             message.author.guild_permissions.manage_messages
         ):
             return
+        if self.bot.user and self.bot.user in message.mentions:
+            return
         if isinstance(self.bot.command_prefix, str) and message.content.startswith(
             self.bot.command_prefix
         ):

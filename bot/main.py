@@ -49,6 +49,8 @@ class ScooViceBot(commands.Bot):
         "bot.cogs.automod",
         "bot.cogs.logs",
         "bot.cogs.ai",
+        "bot.cogs.settings",
+        "bot.cogs.voice",
     )
 
     def __init__(self) -> None:
@@ -75,12 +77,7 @@ class ScooViceBot(commands.Bot):
             logger.error("Discord connected without a bot user")
             return
 
-        logger.info(
-            "Logged in as %s (ID %s) in %s servers",
-            self.user,
-            self.user.id,
-            len(self.guilds),
-        )
+        print(f"Bot online: {self.user}")
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
@@ -96,8 +93,8 @@ class ScooViceBot(commands.Bot):
 
 def run_bot() -> None:
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        level=logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s",
     )
     bot = ScooViceBot()
     bot.run(DISCORD_TOKEN, log_handler=None)
